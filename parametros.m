@@ -1,20 +1,53 @@
+%% ---------- Muestreo ----------
 sampling_time = 2e-6;
-sampling_frec = 1/sampling_time;
-
-fc  = 100e3;            % despues hay que hacer que se pueda cambiar en la GUI
-fi  = 17e3;
-flo = fc + fi;
-
-W    = 1.2e3;
-beta = 4;
-df   = beta*W;          % 4.8 kHz
-Bfm  = 2*(df + W);      % Carson ≈ 12 kHz
-
+sampling_frec = 1/sampling_time;      % 500 kHz
 Fn = sampling_frec/2;
-% Filtro RF (depende de fc)
-[z,p,k] = cheby1(5, 0.1, [fc-8e3 fc+8e3]/Fn, 'bandpass');
+epsilon = 1e-8;
+
+%% ---------- Estaciones (FDM, fijas) ----------
+fc1 = 100.0e3;   % central
+fc2 =  98.0e3;   % inferior
+fc3 = 102.0e3;   % superior
+
+W    = 150;                  % ancho del mensaje por canal (Hz)
+beta = 3;
+df   = beta*W;               % 450 Hz
+Bfm  = 2*(df + W);           % Carson por estación: 1.2 kHz
+
+%% ---------- Receptor (lo cambia la GUI) ----------
+f_rx = fc1;                  % elige: fc2, fc1 o fc3
+fc   = f_rx;
+fi   = 17e3;
+flo  = fc + fi;              % LO automático
+
+%% ---------- Filtro RF (FIJO, centrado en el FDM) ----------
+[z,p,k] = cheby1(4, 0.1, [fc1-4.5e3, fc1+4.5e3]/Fn, 'bandpass');
 sos_rf  = zp2sos(z,p,k);
 
-% Filtro FI (fijo)
-[z,p,k] = cheby1(5, 0.1, [fi-8e3 fi+8e3]/Fn, 'bandpass');
+%% ---------- Tasa del receptor (sin diezmado) ----------
+M      = 1;
+Ts_d   = M*sampling_time;
+Fs_d   = 1/Ts_d;             % 500 kHz
+Fn_d   = Fs_d/2;
+
+%% ---------- Filtro FI (selector de canal) ----------
+% Deseada: fi ± 0.6 kHz (Carson/2). Vecina: empieza en fi ± 1.4 kHz.
+Ap = 0.1;  As = 60;
+Wp = [fi-0.7e3, fi+0.7e3]/Fn_d;      % paso con 0.1 kHz de margen
+Ws = [fi-1.3e3, fi+1.3e3]/Fn_d;      % rechazo antes de la vecina
+[n, Wn] = ellipord(Wp, Ws, Ap, As);
+[z,p,k] = ellip(n, Ap, As, Wn, 'bandpass');
 sos_fi  = zp2sos(z,p,k);
+fprintf('Orden del prototipo FI: %d | max|polo| = %.8f\n', n, max(abs(p)));
+
+%% ---------- Verificación rápida ----------
+[h,f] = freqz(sos_rf, 16384, sampling_frec);
+for fx = [fc2 fc1 fc3 fc+2*fi]
+    [~,i] = min(abs(f-fx));
+    fprintf('RF a %.0f kHz: %.1f dB\n', fx/1e3, 20*log10(abs(h(i))));
+end
+[h,f] = freqz(sos_fi, 16384, Fs_d);
+for o = [0 0.6e3 0.7e3 1.3e3 1.4e3 2e3]
+    [~,i] = min(abs(f-(fi+o)));
+    fprintf('FI offset %.2f kHz: %.1f dB\n', o/1e3, 20*log10(abs(h(i))));
+end
