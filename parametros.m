@@ -15,7 +15,7 @@ df   = beta*W;               % 450 Hz
 Bfm  = 2*(df + W);           % Carson por estación: 1.2 kHz
 
 %% ---------- Receptor (lo cambia la GUI) ----------
-f_rx = fc1;                  % elige: fc2, fc1 o fc3
+f_rx = fc3;                  % elige: fc2, fc1 o fc3
 fc   = f_rx;
 fi   = 17e3;
 flo  = fc + fi;              % LO automático
@@ -61,3 +61,16 @@ end
 [z,p,k] = butter(4, 400/Fn_d, 'low');   sos_aud = zp2sos(z,p,k);       % audio
 Kdem = 1/(5.1*df)*1.2;           % ganancia aprox.; ajústarla viendo el scope
 [z,p,k] = butter(1, 10/Fn_d, 'high');  sos_dc = zp2sos(z,p,k);
+
+
+%Seleccionar Referencia (Señal de salida para comparar al final)
+switch f_rx
+    case fc1
+        select = 1
+    case fc2
+        select = 2
+    case fc3
+        select = 3
+    otherwise
+        error('f_rx debe ser fc1, fc2 o fc3');
+end
