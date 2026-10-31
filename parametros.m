@@ -51,3 +51,13 @@ for o = [0 0.6e3 0.7e3 1.3e3 1.4e3 2e3]
     [~,i] = min(abs(f-(fi+o)));
     fprintf('FI offset %.2f kHz: %.1f dB\n', o/1e3, 20*log10(abs(h(i))));
 end
+
+
+
+%% ---------- Receptor: bloques nuevos ----------
+
+[z,p,k] = butter(4, 30e3/Fn_d, 'low');  sos_lp1 = zp2sos(z,p,k);       % tras el mezclador
+[z,p,k] = butter(2, [12e3 22e3]/Fn_d, 'bandpass'); sos_lim = zp2sos(z,p,k);  % tras el limitador
+[z,p,k] = butter(4, 400/Fn_d, 'low');   sos_aud = zp2sos(z,p,k);       % audio
+Kdem = 1/(5.1*df)*1.2;           % ganancia aprox.; ajústarla viendo el scope
+[z,p,k] = butter(1, 10/Fn_d, 'high');  sos_dc = zp2sos(z,p,k);
