@@ -72,8 +72,7 @@ sintonizado = dmin <= tol_sint;
 
 %% ---------- Ruido AWGN ----------
 if ~exist('SNR_dB','var'), SNR_dB = Inf; end     % Inf = sin ruido
-
-Ps = 0.5;                  % potencia de UNA estación (portadora de amplitud 1)
+Ps = 1.5;                  % potencia de las 3 estaciónes al modularse Ptotal=pcarrier 1 + 2 + 3
 B  = Bfm;                  % ancho en el que se define la SNR (1.2 kHz)
 if isinf(SNR_dB)
     sigma2 = 0;
