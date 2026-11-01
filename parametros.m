@@ -1,4 +1,4 @@
-%% ---------- Muestreo ----------
+    %% ---------- Muestreo ----------
 sampling_time = 2e-6;
 sampling_frec = 1/sampling_time;      % 500 kHz
 Fn = sampling_frec/2;
@@ -15,7 +15,7 @@ df   = beta*W;               % 450 Hz
 Bfm  = 2*(df + W);           % Carson por estación: 1.2 kHz
 
 %% ---------- Receptor (lo cambia la GUI) ----------
-f_rx = fc3;                  % elige: fc2, fc1 o fc3
+if ~exist('f_rx','var'), f_rx = fc1; end
 fc   = f_rx;
 fi   = 17e3;
 flo  = fc + fi;              % LO automático
@@ -63,14 +63,22 @@ Kdem = 1/(5.1*df)*1.2;           % ganancia aprox.; ajústarla viendo el scope
 [z,p,k] = butter(1, 10/Fn_d, 'high');  sos_dc = zp2sos(z,p,k);
 
 
-%Seleccionar Referencia (Señal de salida para comparar al final)
-switch f_rx
-    case fc1
-        select = 1
-    case fc2
-        select = 2
-    case fc3
-        select = 3
-    otherwise
-        error('f_rx debe ser fc1, fc2 o fc3');
+%% ---------- Seleccionar referencia (para comparar al final) ----------
+est      = [fc1 fc2 fc3];
+[dmin, select] = min(abs(est - f_rx));
+tol_sint = 100;
+sintonizado = dmin <= tol_sint;
+
+
+%% ---------- Ruido AWGN ----------
+if ~exist('SNR_dB','var'), SNR_dB = Inf; end     % Inf = sin ruido
+
+Ps = 0.5;                  % potencia de UNA estación (portadora de amplitud 1)
+B  = Bfm;                  % ancho en el que se define la SNR (1.2 kHz)
+if isinf(SNR_dB)
+    sigma2 = 0;
+else
+    % densidad espectral plana en [0, Fs/2]: potencia en B = sigma2*B/(Fs/2)
+    sigma2 = (Ps/10^(SNR_dB/10)) * (Fn/B);
 end
+seed_ruido = 1234;         % semilla fija
