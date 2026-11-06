@@ -26,13 +26,12 @@ flo  = f_rx + fi;             % LO automático (usar 2*pi*flo en el Sine Wave)
 Bf = 1.5*Bfm;                 % margen para el desplazamiento por DC
 [z,p,k] = cheby1(4, 0.1, [fc_fm-Bf/2, fc_fm+Bf/2]/Fn, 'bandpass');
 sos_rf  = zp2sos(z,p,k);
-[z,p,k] = butter(2, [fc_fm-Bf/2, fc_fm+Bf/2]/Fn, 'bandpass');
-sos_lim = zp2sos(z,p,k);
 [z,p,k] = butter(6, 1.2e3/Fn, 'low');
 sos_fmlp = zp2sos(z,p,k);     % Filtro AUD1 (pasa todo el FDM)
-g     = sin(pi*fc_fm*sampling_time)/(pi*fc_fm*sampling_time);   % derivador discreto
-Kdem  = 1/(5.09*df*cos(pi*fc_fm*sampling_time));
-DC_fm = (fc_fm/df) * g / cos(pi*fc_fm*sampling_time);           % ≈ 17.24 (afinar midiendo)
+
+% Sign -> derivador -> abs -> sos_fmlp  da  y = 4*(fc_fm + df*m)
+Kdem  = 1/(4*df);
+DC_fm = fc_fm/df;             % 16.667
 
 %% ---------- Diezmado ----------
 Fs_d_obj = 20e3;
@@ -87,3 +86,5 @@ seed_ruido = 1234;
 
 %% ---------- Ganancia de salida del receptor ----------
 K_am = pi/(G_fdm*mu) / (1 + (f_rx == 0));   % canal 1 sale 2x en la FI
+
+epsilon = 1e-8;
