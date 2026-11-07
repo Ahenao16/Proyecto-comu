@@ -3,12 +3,14 @@ cfg.modelo  = 'radio_FM_simulink_2';
 cfg.R_carga = 1;      % ohm: igual que el Spectrum Analyzer de Simulink
 load_system(cfg.modelo);
 
-% Valores iniciales en el workspace; parametros.m respeta lo que ya exista
-assignin('base','f_rx',400);
-assignin('base','fc_fm',100e3);
+% parametros.m define 'escala'. Se borran f_rx y fc_fm para partir de sus valores por defecto
+evalin('base','clear f_rx fc_fm');
 assignin('base','SNR_dB',Inf);
 evalc('evalin(''base'',''parametros'')');
-cfg.fi = evalin('base','fi');
+cfg.fi  = evalin('base','fi');                   % FI simulada (Hz)
+cfg.k   = evalin('base','escala');
+cfg.fsc = evalin('base','fsc')*cfg.k/1e3;        % subportadoras reales (kHz)
+fc0     = evalin('base','fc_fm')*cfg.k/1e6;      % portadora FM real (MHz)
 
 %% ---------- Ventana con pestañas ----------
 sz = get(0,'ScreenSize');
@@ -30,10 +32,11 @@ pg.ColumnWidth = {150,'1x',170,150,170};
 pg.RowHeight = {'1x','1x','1x'};
 pg.Padding = [8 4 8 4];  pg.RowSpacing = 2;
 
-% Fila 1: portadora FM
-lblPort = uilabel(pg,'Text','Portadora FM (kHz)','FontWeight','bold','WordWrap','on');
+% Fila 1: portadora FM (MHz reales)
+lblPort = uilabel(pg,'Text','Portadora FM (MHz)','FontWeight','bold','WordWrap','on');
 lblPort.Layout.Row = 1; lblPort.Layout.Column = 1;
-sldFc = uislider(pg,'Limits',[50 150],'Value',100,'MajorTicks',50:25:150);
+sldFc = uislider(pg,'Limits',[fc0/2 1.5*fc0],'Value',fc0, ...
+    'MajorTicks',fc0/2:fc0/4:1.5*fc0);
 sldFc.Layout.Row = 1; sldFc.Layout.Column = 2;
 lblFcm = uilabel(pg,'Text','','FontSize',18,'FontWeight','bold');
 lblFcm.Layout.Row = 1; lblFcm.Layout.Column = 3;
@@ -43,11 +46,12 @@ btnSim = uibutton(pg,'Text','Simular','FontSize',15,'FontWeight','bold', ...
     'BackgroundColor',[0.2 0.6 0.3],'FontColor',[1 1 1]);
 btnSim.Layout.Row = 1; btnSim.Layout.Column = 5;
 
-% Fila 2: canal sintonizado
-lbl = uilabel(pg,'Text','Frecuencia sintonizada (Hz)','FontWeight','bold','WordWrap','on');
+% Fila 2: canal sintonizado (kHz reales)
+lbl = uilabel(pg,'Text','Frecuencia sintonizada (kHz)','FontWeight','bold','WordWrap','on');
 lbl.Layout.Row = 2; lbl.Layout.Column = 1;
-sld = uislider(pg,'Limits',[0 900],'Value',400, ...
-    'MajorTicks',[0 400 800],'MajorTickLabels',{'0','400','800'});
+sld = uislider(pg,'Limits',[0 cfg.fsc(end)*1.125],'Value',cfg.fsc(2), ...
+    'MajorTicks',cfg.fsc, ...
+    'MajorTickLabels',arrayfun(@(x)sprintf('%g',x),cfg.fsc,'UniformOutput',false));
 sld.Layout.Row = 2; sld.Layout.Column = 2;
 lblFc = uilabel(pg,'Text','','FontSize',16,'FontWeight','bold');
 lblFc.Layout.Row = 2; lblFc.Layout.Column = 3;
@@ -107,23 +111,24 @@ end
 
 %% =====================================================================
 function cambio(fig)
-ui = fig.UserData.ui;
-ui.sld.Value   = imanes(ui.sld.Value);
-ui.sldFc.Value = round(ui.sldFc.Value);          % pasos de 1 kHz
+S = fig.UserData;  ui = S.ui;
+ui.sld.Value   = imanes(ui.sld.Value,S.cfg.fsc,3);   % imán de 3 kHz reales
+ui.sldFc.Value = round(ui.sldFc.Value*10)/10;        % pasos de 0.1 MHz
 refrescar(fig);
 ui.lblPend.Text = 'Cambios sin simular';
 end
 
 %% =====================================================================
 function refrescar(fig)
-S = fig.UserData;  ui = S.ui;  fi = S.cfg.fi;
-f_rx = ui.sld.Value;
-fc   = round(ui.sldFc.Value)*1e3;
+S = fig.UserData;  ui = S.ui;
+fi   = S.cfg.fi*S.cfg.k;             % FI real (Hz)
+f_rx = ui.sld.Value;                 % kHz reales
+fc   = ui.sldFc.Value;               % MHz reales
 
-ui.lblFcm.Text = sprintf('fc = %.0f kHz',fc/1e3);
-ui.lblFc.Text = sprintf('f_rx = %.0f Hz',f_rx);
-ui.lblFi.Text = sprintf('FI = %.1f kHz',fi/1e3);
-ui.lblLo.Text = sprintf('LO = %.1f kHz',(f_rx+fi)/1e3);
+ui.lblFcm.Text = sprintf('fc = %.1f MHz',fc);
+ui.lblFc.Text  = sprintf('f_rx = %.0f kHz',f_rx);
+ui.lblFi.Text  = sprintf('FI = %.2f MHz',fi/1e6);
+ui.lblLo.Text  = sprintf('LO = %.2f MHz',(f_rx*1e3+fi)/1e6);
 if ui.cbRuido.Value
     ui.lblSNR.Text = sprintf('SNR = %.0f dB',ui.sldSNR.Value);
 else
@@ -134,10 +139,13 @@ end
 %% =====================================================================
 function simular(fig)
 S = fig.UserData;  ui = S.ui;
-modelo = S.cfg.modelo;  R_carga = S.cfg.R_carga;
+modelo = S.cfg.modelo;  R_carga = S.cfg.R_carga;  k = S.cfg.k;
+ek = k/1e3;                          % Hz simulados -> kHz reales
+eM = k/1e6;                          % Hz simulados -> MHz reales
 
-f_rx = ui.sld.Value;
-fc   = round(ui.sldFc.Value)*1e3;
+% Valores reales de la GUI -> unidades de simulación
+f_rx = ui.sld.Value*1e3/k;
+fc   = round(ui.sldFc.Value*1e6/k);
 ui.btnSim.Enable = 'off';
 ui.lblPend.Text = '';
 ui.lblSt.Text = 'Simulando...'; drawnow;
@@ -180,19 +188,19 @@ mh = mh(n0:end);  mr = mr(n0:end);
 nn = min(numel(mh),numel(mr));  mh = mh(1:nn);  mr = mr(1:nn);
 
 %% ----- Pestaña 1 -----
-% Espectro del FDM: 0 a 1.2 kHz, con las subportadoras marcadas
-espectro(ui.ax1,sfdm,f1,[0 1200],1,'Hz',R_carga);
+% Espectro del FDM (kHz reales), con las subportadoras marcadas
+espectro(ui.ax1,sfdm,f1,[0 1200],ek,'kHz',R_carga);
 title(ui.ax1,'Espectro del FDM (transmisor)');
-xline(ui.ax1,fsc,'--','Color',[0.6 0.6 0.6]);
-xline(ui.ax1,f_rx,'r','LineWidth',1.5);
+xline(ui.ax1,fsc*ek,'--','Color',[0.6 0.6 0.6]);
+xline(ui.ax1,f_rx*ek,'r','LineWidth',1.5);
 
-% Espectro en la FI: centrado en fi
-espectro(ui.ax2,sfi,f2,[fi-1e3 fi+1e3],1e-3,'kHz',R_carga);
+% Espectro en la FI (MHz reales), centrado en fi
+espectro(ui.ax2,sfi,f2,[fi-1e3 fi+1e3],eM,'MHz',R_carga);
 title(ui.ax2,'Espectro en la FI');
-xline(ui.ax2,fi/1e3,'r','LineWidth',1.5);
+xline(ui.ax2,fi*eM,'r','LineWidth',1.5);
 
 cla(ui.ax3); cla(ui.ax4); legend(ui.ax3,'off');
-estado = sprintf('Listo. fc = %.0f kHz | f_rx = %.0f Hz',fc/1e3,f_rx);
+estado = sprintf('Listo. fc = %.1f MHz | f_rx = %.0f kHz',fc*eM,f_rx*ek);
 
 if sint
     ui.lblAviso.Text = '';
@@ -201,52 +209,53 @@ if sint
     if d > 0, mh_a = mh(d+1:end); mr_a = mr(1:end-d);
     else,     mh_a = mh;          mr_a = mr; end
     t = (0:numel(mr_a)-1)'/Fa;  m = t < 0.15;
-    plot(ui.ax3,t(m),mr_a(m),t(m),mh_a(m)); grid(ui.ax3,'on');
+    plot(ui.ax3,t(m)*1e3/k,mr_a(m),t(m)*1e3/k,mh_a(m)); grid(ui.ax3,'on');
     legend(ui.ax3,'Original','Recuperada');
     title(ui.ax3,'Audio demodulado vs. original');
     thd_pct = calcula_thd(mh,Fa);
     estado = sprintf('%s | THD = %.2f %%',estado,thd_pct);
 else
     ui.lblEst.Text = '';
-    ui.lblAviso.Text = 'No se está sintonizando una subportadora (0, 400 u 800 Hz)';
+    ui.lblAviso.Text = sprintf('No se está sintonizando una subportadora (%s kHz)', ...
+        strjoin(arrayfun(@(x)sprintf('%g',x),S.cfg.fsc,'UniformOutput',false),', '));
     t = (0:numel(mh)-1)'/Fa;  m = t < 0.15;
-    plot(ui.ax3,t(m),mh(m),'Color',[0.85 0.33 0.1]); grid(ui.ax3,'on');
+    plot(ui.ax3,t(m)*1e3/k,mh(m),'Color',[0.85 0.33 0.1]); grid(ui.ax3,'on');
     title(ui.ax3,'Señal demodulada (sin comparación)');
     estado = sprintf('%s | THD = n/d',estado);
 end
-xlabel(ui.ax3,'Tiempo (s)');
+xlabel(ui.ax3,'Tiempo (ms)');
 
 [P,F] = pwelch(mh-mean(mh),hann(min(2^15,2^floor(log2(numel(mh)/2)))), ...
     [],2*min(2^15,2^floor(log2(numel(mh)/2))),Fa,'power');
 Pdbm = 10*log10((P/R_carga)/1e-3 + eps);
-plot(ui.ax4,F(F<400),Pdbm(F<400)); grid(ui.ax4,'on');
-xlabel(ui.ax4,'Frecuencia (Hz)'); ylabel(ui.ax4,'dBm');
+plot(ui.ax4,F(F<400)*ek,Pdbm(F<400)); grid(ui.ax4,'on');
+xlabel(ui.ax4,'Frecuencia (kHz)'); ylabel(ui.ax4,'dBm');
 title(ui.ax4,'Espectro del audio recuperado');
 
 %% ----- Pestaña 2: salida del modulador FM (RF) -----
 [F,P,Pd] = psd_dbm(sfm,f3,R_carga);
 m = F>=fc_fm-20e3 & F<=fc_fm+20e3;
 cla(ui.ax5);
-plot(ui.ax5,F(m)/1e3,Pd(m)); grid(ui.ax5,'on');
-xline(ui.ax5,(fc_fm-Bfm/2)/1e3,'--','Color',[0.6 0.6 0.6]);
-xline(ui.ax5,(fc_fm+Bfm/2)/1e3,'--','Color',[0.6 0.6 0.6]);
-xline(ui.ax5,fc_fm/1e3,'r','LineWidth',1.5);
-xlabel(ui.ax5,'Frecuencia (kHz)'); ylabel(ui.ax5,'dBm');
-title(ui.ax5,sprintf('Salida del modulador FM: BW 99%% = %.1f kHz (Carson %.1f kHz)', ...
-    bw99(F,P)/1e3,Bfm/1e3));
+plot(ui.ax5,F(m)*eM,Pd(m)); grid(ui.ax5,'on');
+xline(ui.ax5,(fc_fm-Bfm/2)*eM,'--','Color',[0.6 0.6 0.6]);
+xline(ui.ax5,(fc_fm+Bfm/2)*eM,'--','Color',[0.6 0.6 0.6]);
+xline(ui.ax5,fc_fm*eM,'r','LineWidth',1.5);
+xlabel(ui.ax5,'Frecuencia (MHz)'); ylabel(ui.ax5,'dBm');
+title(ui.ax5,sprintf('Salida del modulador FM: BW 99%% = %.2f MHz (Carson %.2f MHz)', ...
+    bw99(F,P)*eM,Bfm*eM));
 
 %% ----- Pestaña 2: salida del demodulador FM (banda base) -----
 legend(ui.ax6,'off'); cla(ui.ax6);
 [F,~,Pd]   = psd_dbm(sdem,f4,R_carga);   m  = F<=1200;
 [F0,~,Pd0] = psd_dbm(sfdm,f1,R_carga);   m0 = F0<=1200;
-plot(ui.ax6,F(m),Pd(m),'LineWidth',1.3); hold(ui.ax6,'on');
-plot(ui.ax6,F0(m0),Pd0(m0),'Color',[0.6 0.6 0.6]); hold(ui.ax6,'off');
+plot(ui.ax6,F(m)*ek,Pd(m),'LineWidth',1.3); hold(ui.ax6,'on');
+plot(ui.ax6,F0(m0)*ek,Pd0(m0),'Color',[0.6 0.6 0.6]); hold(ui.ax6,'off');
 grid(ui.ax6,'on');
 lg = legend(ui.ax6,'Tras demodulador FM','FDM transmitido');
 lg.AutoUpdate = 'off';
-xline(ui.ax6,fsc,':','Color',[0.4 0.4 0.4]);
-xlim(ui.ax6,[0 1200]);
-xlabel(ui.ax6,'Frecuencia (Hz)'); ylabel(ui.ax6,'dBm');
+xline(ui.ax6,fsc*ek,':','Color',[0.4 0.4 0.4]);
+xlim(ui.ax6,[0 1200]*ek);
+xlabel(ui.ax6,'Frecuencia (kHz)'); ylabel(ui.ax6,'dBm');
 title(ui.ax6,'Salida del demodulador FM vs. FDM transmitido');
 
 % Guardar el audio para el botón "Escuchar"
@@ -259,6 +268,7 @@ end
 
 %% =====================================================================
 function escuchar(fig)
+% Se reproduce la señal a escala de simulación (tonos de ~100 Hz, audibles)
 S = fig.UserData;
 yAud = S.yAud;  Fs_aud = S.Fs_aud;
 if isempty(yAud)
@@ -301,6 +311,7 @@ end
 
 function espectro(ax,x,Fs,rango,esc,unidad,R)
 % No se resta la media: el DC del canal 1 (portadora de 0 Hz) debe verse
+% 'rango' en Hz simulados; 'esc' convierte al eje que se muestra
 [F,~,Pdbm] = psd_dbm(x,Fs,R);
 m = F>=rango(1) & F<=rango(2);
 plot(ax,F(m)*esc,Pdbm(m)); grid(ax,'on');
@@ -308,8 +319,8 @@ xlabel(ax,['Frecuencia (' unidad ')']); ylabel(ax,'dBm');
 xlim(ax,rango*esc);
 end
 
-function v = imanes(x)
-est = [0 400 800];                   % subportadoras (Hz)
+function v = imanes(x,est,tol)
+% est y tol en kHz reales
 [d,i] = min(abs(est-x));
-if d <= 30, v = est(i); else, v = x; end
+if d <= tol, v = est(i); else, v = x; end
 end
