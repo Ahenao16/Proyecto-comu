@@ -12,7 +12,7 @@ B_fdm = 1.2e3;                % límite
 G_fdm = 1/(3*(1+mu));         % ganancia antes de la FM (|m| <= 1)
 
 %% ---------- FM (una sola portadora) ----------
-fc_fm = 100e3;
+if ~exist('fc_fm','var'), fc_fm = 100e3; end   % portadora FM (la define la GUI)
 beta  = 5;
 df    = beta*B_fdm;           % 6 kHz
 Bfm   = 2*(df + B_fdm);       % Carson: 14.4 kHz
@@ -24,13 +24,15 @@ flo  = f_rx + fi;             % LO automático (usar 2*pi*flo en el Sine Wave)
 
 %% ---------- Demodulador FM (a 500 kHz) ----------
 Bf = 1.5*Bfm;                 % margen para el desplazamiento por DC
+assert(fc_fm-Bf/2 > 0 && fc_fm+Bf/2 < Fn, 'fc_fm fuera de rango para Fs = %g Hz', sampling_frec);
 [z,p,k] = cheby1(4, 0.1, [fc_fm-Bf/2, fc_fm+Bf/2]/Fn, 'bandpass');
 sos_rf  = zp2sos(z,p,k);
 [z,p,k] = butter(6, 1.2e3/Fn, 'low');
 sos_fmlp = zp2sos(z,p,k);     % Filtro AUD1 (pasa todo el FDM)
 % Sign -> derivador -> abs -> sos_fmlp  da  y = 4*(fc_fm + df*m)
-Kdem  = 1/(4*df);
-DC_fm = fc_fm/df;             % 16.667
+G_dem = 1.26227;                  % ganancia de salida del demodulador (ajustar)
+Kdem  = G_dem/(4*df);
+DC_fm = G_dem*fc_fm/df;       % el DC escala igual que Kdem
 
 %% ---------- Diezmado ----------
 Fs_d_obj = 100e3;                % antes 20e3: con FI de 17 kHz no cabe
@@ -76,10 +78,11 @@ if ~exist('SNR_dB','var'), SNR_dB = Inf; end    % Inf = sin ruido
 Ps = 0.5;                     % portadora FM única, A=1 -> A^2/2
 B  = Bfm;                     % ancho donde se define la SNR
 if isinf(SNR_dB)
-    sigma2 = 0;
+    var_n = 0;
 else
-    sigma2 = (Ps/10^(SNR_dB/10)) * (Fn/B);
+    var_n = (Ps/10^(SNR_dB/10)) * (Fn/B);   % varianza por muestra (V^2)
 end
+sigma2 = var_n*sampling_time;   % Band-Limited White Noise: varianza = Noise power / Ts
 seed_ruido = 1234;
 
 %% ---------- Ganancia de salida del receptor ----------

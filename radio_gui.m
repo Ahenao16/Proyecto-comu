@@ -3,53 +3,74 @@ cfg.modelo  = 'radio_FM_simulink_2';
 cfg.R_carga = 1;      % ohm: igual que el Spectrum Analyzer de Simulink
 load_system(cfg.modelo);
 
+% Valores iniciales en el workspace; parametros.m respeta lo que ya exista
+assignin('base','f_rx',400);
+assignin('base','fc_fm',100e3);
+assignin('base','SNR_dB',Inf);
+evalc('evalin(''base'',''parametros'')');
+cfg.fi = evalin('base','fi');
+
 %% ---------- Ventana con pestañas ----------
-fig  = uifigure('Name','Radio FM superheterodina','Position',[80 60 1100 720]);
+sz = get(0,'ScreenSize');
+w  = min(1100, sz(3)-80);  h = min(700, sz(4)-140);
+fig  = uifigure('Name','Radio FM superheterodina', ...
+    'Position',[max(20,(sz(3)-w)/2) max(40,(sz(4)-h)/2) w h]);
 tg   = uitabgroup(fig,'Units','normalized','Position',[0 0 1 1]);
 tab1 = uitab(tg,'Title','FDM y Receptor');
 tab2 = uitab(tg,'Title','Modulador y Demodulador FM');
 
 %% ---------- Pestaña 1: receptor ----------
 g = uigridlayout(tab1,[4 3]);
-g.RowHeight   = {170,'1x','1x',30};
+g.RowHeight   = {150,'1x','1x',26};
 g.ColumnWidth = {'1x','1x','1x'};
 
 p = uipanel(g,'Title','Dial'); p.Layout.Row = 1; p.Layout.Column = [1 3];
-pg = uigridlayout(p,[3 4]);
-pg.ColumnWidth = {170,'1x',190,190};
+pg = uigridlayout(p,[3 5]);
+pg.ColumnWidth = {150,'1x',170,150,170};
 pg.RowHeight = {'1x','1x','1x'};
+pg.Padding = [8 4 8 4];  pg.RowSpacing = 2;
 
+% Fila 1: portadora FM
+lblPort = uilabel(pg,'Text','Portadora FM (kHz)','FontWeight','bold','WordWrap','on');
+lblPort.Layout.Row = 1; lblPort.Layout.Column = 1;
+sldFc = uislider(pg,'Limits',[50 150],'Value',100,'MajorTicks',50:25:150);
+sldFc.Layout.Row = 1; sldFc.Layout.Column = 2;
+lblFcm = uilabel(pg,'Text','','FontSize',18,'FontWeight','bold');
+lblFcm.Layout.Row = 1; lblFcm.Layout.Column = 3;
+lblFi = uilabel(pg,'Text','','FontSize',14);
+lblFi.Layout.Row = 1; lblFi.Layout.Column = 4;
+btnSim = uibutton(pg,'Text','Simular','FontSize',15,'FontWeight','bold', ...
+    'BackgroundColor',[0.2 0.6 0.3],'FontColor',[1 1 1]);
+btnSim.Layout.Row = 1; btnSim.Layout.Column = 5;
+
+% Fila 2: canal sintonizado
 lbl = uilabel(pg,'Text','Frecuencia sintonizada (Hz)','FontWeight','bold','WordWrap','on');
-lbl.Layout.Row = 1; lbl.Layout.Column = 1;
-
+lbl.Layout.Row = 2; lbl.Layout.Column = 1;
 sld = uislider(pg,'Limits',[0 900],'Value',400, ...
     'MajorTicks',[0 400 800],'MajorTickLabels',{'0','400','800'});
-sld.Layout.Row = [1 2]; sld.Layout.Column = 2;
-
-lblFc = uilabel(pg,'Text','','FontSize',22,'FontWeight','bold');
-lblFc.Layout.Row = 1; lblFc.Layout.Column = 3;
-lblFi = uilabel(pg,'Text','','FontSize',16);
-lblFi.Layout.Row = 1; lblFi.Layout.Column = 4;
+sld.Layout.Row = 2; sld.Layout.Column = 2;
+lblFc = uilabel(pg,'Text','','FontSize',16,'FontWeight','bold');
+lblFc.Layout.Row = 2; lblFc.Layout.Column = 3;
 lblLo = uilabel(pg,'Text','','FontSize',14);
-lblLo.Layout.Row = 2; lblLo.Layout.Column = 3;
+lblLo.Layout.Row = 2; lblLo.Layout.Column = 4;
+btnSnd = uibutton(pg,'Text','Escuchar','FontSize',14);
+btnSnd.Layout.Row = 2; btnSnd.Layout.Column = 5;
 
-btnSnd = uibutton(pg,'Text','Escuchar');
-btnSnd.Layout.Row = 2; btnSnd.Layout.Column = 1;
-
-lblEst = uilabel(pg,'Text','','FontSize',14,'FontColor',[0.1 0.5 0.2]);
-lblEst.Layout.Row = 2; lblEst.Layout.Column = 4;
-lblAviso = uilabel(pg,'Text','','FontSize',13,'FontWeight','bold', ...
-    'FontColor',[0.8 0.1 0.1],'WordWrap','on');
-lblAviso.Layout.Row = 2; lblAviso.Layout.Column = 4;
-
+% Fila 3: ruido y estado
 cbRuido = uicheckbox(pg,'Text','Ruido AWGN','Value',false);
 cbRuido.Layout.Row = 3; cbRuido.Layout.Column = 1;
-
 sldSNR = uislider(pg,'Limits',[0 40],'Value',30,'MajorTicks',0:10:40);
 sldSNR.Layout.Row = 3; sldSNR.Layout.Column = 2;
-
 lblSNR = uilabel(pg,'Text','Sin ruido','FontSize',14);
 lblSNR.Layout.Row = 3; lblSNR.Layout.Column = 3;
+lblEst = uilabel(pg,'Text','','FontSize',13,'FontColor',[0.1 0.5 0.2],'WordWrap','on');
+lblEst.Layout.Row = 3; lblEst.Layout.Column = 4;
+lblAviso = uilabel(pg,'Text','','FontSize',11,'FontWeight','bold', ...
+    'FontColor',[0.8 0.1 0.1],'WordWrap','on');
+lblAviso.Layout.Row = 3; lblAviso.Layout.Column = 4;
+lblPend = uilabel(pg,'Text','','FontSize',12,'FontWeight','bold', ...
+    'FontColor',[0.85 0.45 0],'WordWrap','on');
+lblPend.Layout.Row = 3; lblPend.Layout.Column = 5;
 
 ax1 = uiaxes(g); ax1.Layout.Row = 2; ax1.Layout.Column = [1 2];
 ax2 = uiaxes(g); ax2.Layout.Row = 2; ax2.Layout.Column = 3;
@@ -64,53 +85,87 @@ ax5 = uiaxes(g2); ax5.Layout.Row = 1; ax5.Layout.Column = 1;
 ax6 = uiaxes(g2); ax6.Layout.Row = 1; ax6.Layout.Column = 2;
 
 %% ---------- Estado compartido (sin funciones anidadas) ----------
-ui = struct('sld',sld,'lblFc',lblFc,'lblFi',lblFi,'lblLo',lblLo, ...
-    'lblEst',lblEst,'lblAviso',lblAviso,'cbRuido',cbRuido, ...
+ui = struct('sld',sld,'sldFc',sldFc,'lblFcm',lblFcm,'lblFc',lblFc, ...
+    'lblFi',lblFi,'lblLo',lblLo,'lblEst',lblEst,'lblAviso',lblAviso, ...
+    'lblPend',lblPend,'btnSim',btnSim,'cbRuido',cbRuido, ...
     'sldSNR',sldSNR,'lblSNR',lblSNR,'ax1',ax1,'ax2',ax2, ...
     'ax3',ax3,'ax4',ax4,'ax5',ax5,'ax6',ax6,'lblSt',lblSt);
 fig.UserData = struct('ui',ui,'cfg',cfg,'yAud',[],'Fs_aud',100e3);
 
 %% ---------- Callbacks ----------
-sld.ValueChangedFcn     = @(~,~)actualizar(fig,imanes(sld.Value));
-cbRuido.ValueChangedFcn = @(~,~)actualizar(fig,sld.Value);
-sldSNR.ValueChangedFcn  = @(~,~)actualizar(fig,sld.Value);
+% Los controles solo actualizan etiquetas; la simulación la lanza el botón
+sld.ValueChangedFcn     = @(~,~)cambio(fig);
+sldFc.ValueChangedFcn   = @(~,~)cambio(fig);
+cbRuido.ValueChangedFcn = @(~,~)cambio(fig);
+sldSNR.ValueChangedFcn  = @(~,~)cambio(fig);
+btnSim.ButtonPushedFcn  = @(~,~)simular(fig);
 btnSnd.ButtonPushedFcn  = @(~,~)escuchar(fig);
 
-actualizar(fig,400);
+refrescar(fig);
+lblSt.Text = 'Listo. Presione "Simular" para correr el modelo.';
 end
 
 %% =====================================================================
-function actualizar(fig,f_rx)
+function cambio(fig)
+ui = fig.UserData.ui;
+ui.sld.Value   = imanes(ui.sld.Value);
+ui.sldFc.Value = round(ui.sldFc.Value);          % pasos de 1 kHz
+refrescar(fig);
+ui.lblPend.Text = 'Cambios sin simular';
+end
+
+%% =====================================================================
+function refrescar(fig)
+S = fig.UserData;  ui = S.ui;  fi = S.cfg.fi;
+f_rx = ui.sld.Value;
+fc   = round(ui.sldFc.Value)*1e3;
+
+ui.lblFcm.Text = sprintf('fc = %.0f kHz',fc/1e3);
+ui.lblFc.Text = sprintf('f_rx = %.0f Hz',f_rx);
+ui.lblFi.Text = sprintf('FI = %.1f kHz',fi/1e3);
+ui.lblLo.Text = sprintf('LO = %.1f kHz',(f_rx+fi)/1e3);
+if ui.cbRuido.Value
+    ui.lblSNR.Text = sprintf('SNR = %.0f dB',ui.sldSNR.Value);
+else
+    ui.lblSNR.Text = 'Sin ruido';
+end
+end
+
+%% =====================================================================
+function simular(fig)
 S = fig.UserData;  ui = S.ui;
 modelo = S.cfg.modelo;  R_carga = S.cfg.R_carga;
 
-ui.sld.Value = f_rx;
+f_rx = ui.sld.Value;
+fc   = round(ui.sldFc.Value)*1e3;
+ui.btnSim.Enable = 'off';
+ui.lblPend.Text = '';
 ui.lblSt.Text = 'Simulando...'; drawnow;
 
-if ui.cbRuido.Value
-    assignin('base','SNR_dB',ui.sldSNR.Value);
-    ui.lblSNR.Text = sprintf('SNR = %.0f dB',ui.sldSNR.Value);
-else
-    assignin('base','SNR_dB',Inf);
-    ui.lblSNR.Text = 'Sin ruido';
+try
+    if ui.cbRuido.Value
+        assignin('base','SNR_dB',ui.sldSNR.Value);
+    else
+        assignin('base','SNR_dB',Inf);
+    end
+    assignin('base','f_rx',f_rx);
+    assignin('base','fc_fm',fc);
+    evalc('evalin(''base'',''parametros'')');
+    out = sim(modelo,'StopTime','2');
+catch err
+    ui.btnSim.Enable = 'on';
+    ui.lblSt.Text = 'Error en la simulación';
+    uialert(fig,err.message,'Error de simulación');
+    return;
 end
 
-assignin('base','f_rx',f_rx);
-evalc('evalin(''base'',''parametros'')');
 fi     = evalin('base','fi');
-flo    = evalin('base','flo');
 fsc    = evalin('base','fsc');
 fc_fm  = evalin('base','fc_fm');
 Bfm    = evalin('base','Bfm');
 sint   = evalin('base','sintonizado');
 select = evalin('base','select');
-
-out = sim(modelo,'StopTime','2');
-T   = out.tout(end);
-
-ui.lblFc.Text = sprintf('f_rx = %.0f Hz', f_rx);
-ui.lblFi.Text = sprintf('FI = %.1f kHz', fi/1e3);
-ui.lblLo.Text = sprintf('LO = %.1f kHz', flo/1e3);
+T      = out.tout(end);
 
 % Señales (cada una con su propia frecuencia de muestreo)
 [sfdm,f1] = getv(out,'s_fdm',T);  sfdm = sfdm(round(0.15*f1)+1:end);
@@ -137,7 +192,7 @@ title(ui.ax2,'Espectro en la FI');
 xline(ui.ax2,fi/1e3,'r','LineWidth',1.5);
 
 cla(ui.ax3); cla(ui.ax4); legend(ui.ax3,'off');
-estado = sprintf('Listo. f_rx = %.0f Hz',f_rx);
+estado = sprintf('Listo. fc = %.0f kHz | f_rx = %.0f Hz',fc/1e3,f_rx);
 
 if sint
     ui.lblAviso.Text = '';
@@ -195,9 +250,11 @@ xlabel(ui.ax6,'Frecuencia (Hz)'); ylabel(ui.ax6,'dBm');
 title(ui.ax6,'Salida del demodulador FM vs. FDM transmitido');
 
 % Guardar el audio para el botón "Escuchar"
+S = fig.UserData;
 S.yAud = mh;  S.Fs_aud = Fa;
 fig.UserData = S;
 ui.lblSt.Text = estado;
+ui.btnSim.Enable = 'on';
 end
 
 %% =====================================================================
