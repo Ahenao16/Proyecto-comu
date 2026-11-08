@@ -1,0 +1,31 @@
+
+¿Cómo utilizar los archivos del proyecto?
+
+1. Descomprima el archivo entregado en TEC Digital y deje parametros.m,
+   radio_gui.m y radio_FM_simulink_final.slx siempre en la misma carpeta.
+
+2. Use MATLAB R2026b, ya que con otras versiones el modelo y los scripts
+   pueden no ejecutarse.
+
+3. Verifique que estén instalados Simulink y el complemento DSP System
+   Toolbox, que se utiliza en los bloques de filtros.
+
+4. En MATLAB, ubíquese en esa carpeta y ejecute radio_gui.m. Este script
+   carga automáticamente los parámetros y el modelo de Simulink, así que no
+   es necesario abrirlos por separado.
+
+5. En la interfaz ajuste la portadora FM, la frecuencia sintonizada (canal)
+   y, si lo desea, active el ruido AWGN y elija la SNR. Luego presione
+   "Simular".
+
+6. Espere a que la barra inferior izquierda indique que la simulación
+   terminó. Después puede presionar "Escuchar" para reproducir el audio
+   recuperado, o cambiar a la pestaña "Modulador y Demodulador FM" para ver
+   los espectros de esa etapa.
+
+Nota: cada vez que cambie un control debe volver a presionar "Simular"
+para que el resultado se actualice.
+
+
+Enlace del video de la presentación: 
+https://youtu.be/nGxaKg0bkYo
