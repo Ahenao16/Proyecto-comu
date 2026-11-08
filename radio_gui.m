@@ -1,5 +1,5 @@
 function radio_gui
-cfg.modelo  = 'radio_FM_simulink_2';
+cfg.modelo  = 'radio_FM_simulink_final';
 cfg.R_carga = 1;      % ohm: igual que el Spectrum Analyzer de Simulink
 load_system(cfg.modelo);
 
